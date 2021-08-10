@@ -3,14 +3,15 @@
 ## 简介
 
 `libnet` 是仿照muduo[1]实现的一个基于Reactor模式的多线程C++网络库，经过适当简化以后代码量约为2000行。简化的部分如下：
-- 使用c++11的std::atomic 库 来替代GCC 内置的原子指令。
 
-  比如在 `TcpConnection`中`shutdown`函数对于连接状态`state_`的修改：
+- 使用C++11的std::atomic 库来替代GCC 内置的原子指令。
+
+  比如在 `TcpConnection`中`shutdown`函数对于连接状态`state_` ( `std::atomic<int>` )的修改：
   ```cpp
     void TcpConnection::shutdown()
     {
       assert(state_ <= kDisconnecting);
-      if (state_.exchange(kDisconnecting) ==kConnected) {
+      if (state_.exchange(kDisconnecting) == kConnected) {
         if (loop_->isInLoopThread())
         {
           shutdownInLoop();
@@ -42,7 +43,7 @@
 
 - 仅使用epoll，不使用poll和select。
 
-- 使用c++14的`Lambada`表达式 与`auto`组合，完美替代`std::bind`与`std::placeholders`的组合，更加方便地将成员函数作为回调函数，不仅更加简洁，也可以获得更高的效率。
+- 使用C++14的`Lambada`表达式 与`auto`组合，完美替代`std::bind`与`std::placeholders`的组合，更加方便地将成员函数作为回调函数，不仅更加简洁，也可以获得更高的效率。
 
   一个简单的echo服务器。以前的实现：
 
@@ -147,7 +148,7 @@
 
   最后，完整的代码可以参考 `example/EchoServer.cc`
 
-- 使用`using`来代替`typedef`，使得代码更加符合现代c++风格。
+- 使用`using`来代替`typedef`，使得代码更加符合现代C++风格。
 
 - 对于 `epoll_wait`的阻塞时间，不是一个固定值，而是根据是否有其他任务和定时器最早的超时时间来计算的，来减少阻塞时间，加快响应。
   ```cpp
