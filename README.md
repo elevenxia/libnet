@@ -26,6 +26,7 @@
       }
     }
   ```
+  
 - 多线程依赖于C++11提供的std::thread库，而不是重新封装POSIX thread API。
 
 - 定时器依赖于C++11提供的std::chrono库，而不是自己实现Timstamp类，也不用直接调用`gettimeofday()`。这样写的好处之一是我们不必再为定时器API的时间单位操心：
@@ -97,16 +98,17 @@
     TcpServer server_;
   };
   ```
-- 应用层的流量控制
-
-  上面的这个 `echo` 实现非常简单，读者只需关注 `onMessage` 回调函数，它将收到消息发回客户端。然而，该实现有一个问题：若客户端只发送而不接收数据（即只调用`write`而不调用`read`），则TCP的流量控制（flow control）会导致数据堆积在服务端，最终会耗尽服务端内存。为解决该问题我们引入应用层的流量控制高/低水位回调。我们新增了3个回调：`onConnection`，`onHighWaterMark`和`onWriteComplete`。当TCP连接建立时`onConnection`会设置高水位回调值（high water mark）；当send buffer达到该值时，`onHighWaterMark`会停止读socket；当send buffer全部写入内核时，`onWriteComplete`会重新开始读socket。
-
-  除此以外，我们还需要给服务器加上定时功能以清除空闲连接。实现思路是让服务器保存一个TCP连接的`std::map`，每隔几秒扫描一遍所有连接并清除超时的连接，代码在[这里](./example/EchoServer.cc)。
-
+  
+- 清除超时连接
+  
+  除此以外，我们还需要给服务器加上定时功能以清除空闲连接。实现思路是让服务器保存一个TCP连接的`std::map`，每隔几秒扫描一遍所有连接并清除超时的连接。
+  
+- 多线程
+  
   然后，我们给服务器加上多线程功能。实现起来非常简单，只需加一行代码即可：
-
+  
   ```c++
-EchoServer::void start()
+  EchoServer::void start()
   {
     // set thread num here
     server_.setNumThread(2);
@@ -115,7 +117,7 @@ EchoServer::void start()
   ```
   
   最后，完整的代码可以参考 `example/EchoServer.cc`
-
+  
 - 使用`using`来代替`typedef`，使得代码更加符合现代C++风格。
 
 - 对于 `epoll_wait`的阻塞时间，不是一个固定值，而是根据是否有其他任务和定时器最早的超时时间来计算的，来减少阻塞时间，加快响应。
@@ -133,6 +135,7 @@ EchoServer::void start()
     int timeout = getNextTimeout();
     poller_->poll(activeChannels_, timeout);
   ```
+  
 - `TimeWheel`：可以为每个连接对象设置超时时间，在O(1)时间复杂度内可以剔除超时连接。
 
 整个程序在正常使用下，使用 `valgrind`工具检测内存，无内存泄露。以`echo_server`为例：
