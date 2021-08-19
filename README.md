@@ -99,53 +99,21 @@
   ```
 - 应用层的流量控制
 
-  上面的这个 `echo` 实现非常简单，读者只需关注 `onMessage` 回调函数，它将收到消息发回客户端。然而，该实现有一个问题：若客户端只发送而不接收数据（即只调用`write`而不调用`read`），则TCP的流量控制（flow control）会导致数据堆积在服务端，最终会耗尽服务端内存。为解决该问题我们引入应用层的流量控制高/低水位回调：
-
-  ```c++
-  class EchoServer: noncopyable
-  {
-  public:
-    ...
-    void onConnection(const TcpConnectionPtr& conn)
-    {
-      if (conn->connected())
-          conn->setHighWaterMarkCallback([this](auto connptr, auto mark)
-                                          {
-                                            this->onHighWaterMark(connptr, mark);
-                                          },
-                                          1024);
-    }
-    void onHighWaterMark(const TcpConnectionPtr& conn, size_t mark)
-    {
-      INFO("high water mark %lu bytes, stop read", mark);
-      conn->stopRead();
-    }
-    void onWriteComplete(const TcpConnectionPtr& conn)
-    {
-      if (!conn->isReading()) {
-        INFO("write complete, start read");
-        conn->startRead();
-      }
-    }
-    ...
-  };
-  ```
-
-  我们新增了3个回调：`onConnection`，`onHighWaterMark`和`onWriteComplete`。当TCP连接建立时`onConnection`会设置高水位回调值（high water mark）；当send buffer达到该值时，`onHighWaterMark`会停止读socket；当send buffer全部写入内核时，`onWriteComplete`会重新开始读socket。
+  上面的这个 `echo` 实现非常简单，读者只需关注 `onMessage` 回调函数，它将收到消息发回客户端。然而，该实现有一个问题：若客户端只发送而不接收数据（即只调用`write`而不调用`read`），则TCP的流量控制（flow control）会导致数据堆积在服务端，最终会耗尽服务端内存。为解决该问题我们引入应用层的流量控制高/低水位回调。我们新增了3个回调：`onConnection`，`onHighWaterMark`和`onWriteComplete`。当TCP连接建立时`onConnection`会设置高水位回调值（high water mark）；当send buffer达到该值时，`onHighWaterMark`会停止读socket；当send buffer全部写入内核时，`onWriteComplete`会重新开始读socket。
 
   除此以外，我们还需要给服务器加上定时功能以清除空闲连接。实现思路是让服务器保存一个TCP连接的`std::map`，每隔几秒扫描一遍所有连接并清除超时的连接，代码在[这里](./example/EchoServer.cc)。
 
   然后，我们给服务器加上多线程功能。实现起来非常简单，只需加一行代码即可：
 
   ```c++
-  EchoServer::void start()
+EchoServer::void start()
   {
     // set thread num here
     server_.setNumThread(2);
     server_.start();
   }
   ```
-
+  
   最后，完整的代码可以参考 `example/EchoServer.cc`
 
 - 使用`using`来代替`typedef`，使得代码更加符合现代C++风格。
